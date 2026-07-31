@@ -1,0 +1,17 @@
+name: Feature proposal
+description: Propose a portable Spine integration capability
+title: "[Proposal] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+    validations:
+      required: true
+  - type: textarea
+    id: boundary
+    attributes:
+      label: Adapter and licensing boundary
+    validations:
+      required: true

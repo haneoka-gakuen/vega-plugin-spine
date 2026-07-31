@@ -1,0 +1,25 @@
+name: Bug report
+description: Report a reproducible Spine adapter-contract defect
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      placeholder: "@haneoka/vega-plugin-spine 0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal code-only reproduction
+      description: Do not attach runtimes, skeletons, atlases, textures, or game assets.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
