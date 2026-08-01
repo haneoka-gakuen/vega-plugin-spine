@@ -45,7 +45,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: vega-plugin-spine
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build Vega protocol
         working-directory: vega-plugin-spine
