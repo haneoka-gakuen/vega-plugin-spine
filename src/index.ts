@@ -159,23 +159,241 @@ export const describeSpineModel = (
   };
 };
 
-/** Enumerate the standard skeleton and atlas pair without host-only fields. */
-export const enumerateSpineResources = (
-  context: Pick<StoryCharacterResourceEnumerationContext, "entry">,
-): readonly StoryCharacterResource[] => {
+const atlasPageNames = (atlas: string): readonly string[] => {
+  const pages: string[] = [];
+  let expectsPage = true;
+  for (const line of atlas.split(/\r\n?|\n/u)) {
+    const value = line.trim();
+    if (!value) {
+      expectsPage = true;
+      continue;
+    }
+    if (!expectsPage) continue;
+    // Spine 4.2 permits atlas-wide `key: value` header entries before the
+    // first page. They describe the atlas and are not texture file names.
+    if (value.includes(":")) continue;
+    pages.push(value);
+    expectsPage = false;
+  }
+  return Object.freeze(pages);
+};
+
+const ABSOLUTE_SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/u;
+type SpineResourceResolver =
+  StoryCharacterResourceEnumerationContext["resources"];
+
+interface SharedSpineAtlas {
+  readonly controller: AbortController;
+  readonly pending: Promise<string>;
+  waiters: number;
+  settled: boolean;
+}
+
+type SpineAtlasCache = Map<string, SharedSpineAtlas>;
+
+const atlasTextCaches = new WeakMap<
+  SpineResourceResolver,
+  SpineAtlasCache
+>();
+
+const trimSpineAtlasCache = (cache: SpineAtlasCache): void => {
+  while (cache.size > 128) {
+    let removed = false;
+    for (const [source, shared] of cache) {
+      // In-flight entries remain addressable so concurrent enumerations never
+      // create a second atlas request merely because the LRU is under pressure.
+      if (!shared.settled) continue;
+      cache.delete(source);
+      removed = true;
+      break;
+    }
+    if (!removed) return;
+  }
+};
+
+const waitForSpineAtlas = (
+  shared: SharedSpineAtlas,
+  cache: SpineAtlasCache,
+  source: string,
+  signal: AbortSignal,
+): Promise<string> => {
+  if (signal.aborted) {
+    if (shared.waiters === 0 && !shared.settled) {
+      if (cache.get(source) === shared) cache.delete(source);
+      shared.controller.abort(signal.reason);
+    }
+    return Promise.reject(abortReason(signal));
+  }
+  shared.waiters += 1;
+  return new Promise<string>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", aborted);
+      shared.waiters = Math.max(0, shared.waiters - 1);
+      callback();
+    };
+    const aborted = () =>
+      finish(() => {
+        if (shared.waiters === 0 && !shared.settled) {
+          if (cache.get(source) === shared) cache.delete(source);
+          shared.controller.abort(signal.reason);
+        }
+        reject(abortReason(signal));
+      });
+    signal.addEventListener("abort", aborted, { once: true });
+    shared.pending.then(
+      (value) => finish(() => resolve(value)),
+      (error: unknown) => finish(() => reject(error)),
+    );
+  });
+};
+
+const loadSpineAtlas = (
+  resources: SpineResourceResolver,
+  source: string,
+  signal: AbortSignal,
+): Promise<string> => {
+  throwIfAborted(signal);
+  let cache = atlasTextCaches.get(resources);
+  if (!cache) {
+    cache = new Map();
+    atlasTextCaches.set(resources, cache);
+  }
+  const cached = cache.get(source);
+  if (cached) {
+    cache.delete(source);
+    cache.set(source, cached);
+    return waitForSpineAtlas(cached, cache, source, signal);
+  }
+
+  const controller = new AbortController();
+  let shared!: SharedSpineAtlas;
+  const pending = resources
+    .load(source, controller.signal)
+    .then((bytes) => new TextDecoder().decode(bytes))
+    .catch((error: unknown) => {
+      if (cache?.get(source) === shared) cache.delete(source);
+      if (controller.signal.aborted) throw abortReason(controller.signal);
+      throw error;
+    })
+    .finally(() => {
+      shared.settled = true;
+      if (cache) trimSpineAtlasCache(cache);
+    });
+  shared = { controller, pending, waiters: 0, settled: false };
+  cache.set(source, shared);
+  trimSpineAtlasCache(cache);
+  return waitForSpineAtlas(shared, cache, source, signal);
+};
+
+/** Resolve page names relative to both hierarchical and host-owned atlas URLs. */
+export const resolveSpineAtlasPageSource = (
+  atlasSource: string,
+  pageName: string,
+): string => {
+  const page = pageName.trim();
+  if (!page) throw new TypeError("Spine atlas page name cannot be empty");
+
+  if (ABSOLUTE_SCHEME.test(atlasSource)) {
+    try {
+      return new URL(page, atlasSource).toString();
+    } catch (error) {
+      const opaque =
+        /^([A-Za-z][A-Za-z0-9+.-]*:)(?!\/\/)([^?#]*)(?:[?#].*)?$/u.exec(
+          atlasSource,
+        );
+      if (!opaque) throw error;
+      if (ABSOLUTE_SCHEME.test(page)) return page;
+      if (page.startsWith("//")) return `${opaque[1]}${page}`;
+      const syntheticOrigin = "https://vega-spine-opaque.invalid";
+      const syntheticBase = new URL(
+        `/${opaque[2]!.replace(/^\/+/u, "")}`,
+        syntheticOrigin,
+      );
+      const resolved = new URL(page, syntheticBase);
+      if (resolved.origin !== syntheticOrigin) return resolved.toString();
+      return `${opaque[1]}${resolved.pathname.replace(/^\/+/u, "")}${resolved.search}${resolved.hash}`;
+    }
+  }
+
+  if (atlasSource.startsWith("//")) {
+    const resolved = new URL(page, `https:${atlasSource}`);
+    if (ABSOLUTE_SCHEME.test(page)) return resolved.toString();
+    return resolved.toString().replace(/^https:/u, "");
+  }
+
+  if (
+    ABSOLUTE_SCHEME.test(page) ||
+    page.startsWith("//") ||
+    page.startsWith("/")
+  ) {
+    return page;
+  }
+  const syntheticOrigin = "https://vega-spine-relative.invalid";
+  const rooted = atlasSource.startsWith("/");
+  const base = new URL(
+    rooted ? atlasSource : `/${atlasSource}`,
+    syntheticOrigin,
+  );
+  const resolved = new URL(page, base);
+  if (resolved.origin !== syntheticOrigin) return resolved.toString();
+  const path = `${resolved.pathname}${resolved.search}${resolved.hash}`;
+  return rooted ? path : path.replace(/^\//u, "");
+};
+
+/**
+ * Enumerate a standard skeleton, atlas, and every atlas page image.
+ *
+ * Spine animations are embedded in the JSON or binary skeleton, so there are
+ * intentionally no separate animation resources to discover or preload.
+ */
+export const enumerateSpineResources = async (
+  context: StoryCharacterResourceEnumerationContext,
+): Promise<readonly StoryCharacterResource[]> => {
   const descriptor = describeSpineModel(context.entry);
   if (!descriptor) return [];
+  throwIfAborted(context.signal);
+  const atlas = await loadSpineAtlas(
+    context.resources,
+    descriptor.atlasSource,
+    context.signal,
+  );
+  throwIfAborted(context.signal);
+  const pageSources = [
+    ...new Set(
+      atlasPageNames(atlas).map((pageName) =>
+        resolveSpineAtlasPageSource(descriptor.atlasSource, pageName),
+      ),
+    ),
+  ];
+  const containsSelectedAnimation = Boolean(
+    context.animationUsage &&
+      (context.animationUsage.motions.length > 0 ||
+        context.animationUsage.expressions.length > 0),
+  );
   return Object.freeze([
     Object.freeze({
       source: descriptor.skeletonSource,
       label: descriptor.binary
         ? "Spine binary skeleton"
         : "Spine JSON skeleton",
+      ...(containsSelectedAnimation
+        ? { role: "animation" as const }
+        : {}),
     }),
     Object.freeze({
       source: descriptor.atlasSource,
       label: "Spine atlas",
     }),
+    ...pageSources.map((source) =>
+      Object.freeze({
+        source,
+        kind: "texture" as const,
+        label: "Spine atlas page",
+      }),
+    ),
   ]);
 };
 
