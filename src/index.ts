@@ -41,13 +41,8 @@ export interface SpineRuntimeAdapter {
       readonly descriptor: SpineModelDescriptor;
     },
   ): StoryCharacterModel | Promise<StoryCharacterModel>;
-  createForRenderer?(
-    context: SpineRendererCharacterContext,
-  ): unknown | Promise<unknown>;
-  disposeRendererModel?(
-    model: unknown,
-    context: SpineRendererCharacterContext,
-  ): void | Promise<void>;
+  createForRenderer?(context: SpineRendererCharacterContext): unknown | Promise<unknown>;
+  disposeRendererModel?(model: unknown, context: SpineRendererCharacterContext): void | Promise<void>;
 }
 
 export interface CreateSpinePluginOptions {
@@ -62,13 +57,9 @@ const object = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 
 const firstString = (...values: unknown[]): string =>
-  values
-    .map((value) => (typeof value === "string" ? value.trim() : ""))
-    .find(Boolean) ?? "";
+  values.map((value) => (typeof value === "string" ? value.trim() : "")).find(Boolean) ?? "";
 
-const standardSpineFormat = (
-  entry: StoryCharacterModelContext["entry"],
-): string => {
+const standardSpineFormat = (entry: StoryCharacterModelContext["entry"]): string => {
   const source = object(entry);
   const runtime = object(source.runtime);
   const binary = firstString(runtime.skel, source.skel);
@@ -84,11 +75,7 @@ const standardSpineFormat = (
     return "spine-json";
   }
   const explicit = firstString(runtime.format, source.format).toLowerCase();
-  if (
-    explicit === "spine" ||
-    explicit === "spine-json" ||
-    explicit === "spine-binary"
-  ) {
+  if (explicit === "spine" || explicit === "spine-json" || explicit === "spine-binary") {
     return explicit;
   }
   return "";
@@ -130,9 +117,7 @@ const disposeRendererModel = async (
   else if (typeof candidate.release === "function") await candidate.release();
 };
 
-export const describeSpineModel = (
-  entry: StoryCharacterModelContext["entry"],
-): SpineModelDescriptor | null => {
+export const describeSpineModel = (entry: StoryCharacterModelContext["entry"]): SpineModelDescriptor | null => {
   const source = object(entry);
   const runtime = object(source.runtime);
   const binarySource = firstString(runtime.skel, source.skel);
@@ -146,13 +131,9 @@ export const describeSpineModel = (
     skeletonSource,
     atlasSource,
     binary:
-      format === "spine-binary" ||
-      Boolean(binarySource) ||
-      (!jsonSource && /\.skel(?:[?#].*)?$/iu.test(genericSource)),
+      format === "spine-binary" || Boolean(binarySource) || (!jsonSource && /\.skel(?:[?#].*)?$/iu.test(genericSource)),
     scale: positive(runtime.scale ?? source.scale),
-    ...(firstString(runtime.skin, source.skin)
-      ? { defaultSkin: firstString(runtime.skin, source.skin) }
-      : {}),
+    ...(firstString(runtime.skin, source.skin) ? { defaultSkin: firstString(runtime.skin, source.skin) } : {}),
     ...(firstString(runtime.animation, source.animation)
       ? { defaultAnimation: firstString(runtime.animation, source.animation) }
       : {}),
@@ -179,8 +160,7 @@ const atlasPageNames = (atlas: string): readonly string[] => {
 };
 
 const ABSOLUTE_SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/u;
-type SpineResourceResolver =
-  StoryCharacterResourceEnumerationContext["resources"];
+type SpineResourceResolver = StoryCharacterResourceEnumerationContext["resources"];
 
 interface SharedSpineAtlas {
   readonly controller: AbortController;
@@ -191,10 +171,7 @@ interface SharedSpineAtlas {
 
 type SpineAtlasCache = Map<string, SharedSpineAtlas>;
 
-const atlasTextCaches = new WeakMap<
-  SpineResourceResolver,
-  SpineAtlasCache
->();
+const atlasTextCaches = new WeakMap<SpineResourceResolver, SpineAtlasCache>();
 
 const trimSpineAtlasCache = (cache: SpineAtlasCache): void => {
   while (cache.size > 128) {
@@ -250,11 +227,7 @@ const waitForSpineAtlas = (
   });
 };
 
-const loadSpineAtlas = (
-  resources: SpineResourceResolver,
-  source: string,
-  signal: AbortSignal,
-): Promise<string> => {
+const loadSpineAtlas = (resources: SpineResourceResolver, source: string, signal: AbortSignal): Promise<string> => {
   throwIfAborted(signal);
   let cache = atlasTextCaches.get(resources);
   if (!cache) {
@@ -289,10 +262,7 @@ const loadSpineAtlas = (
 };
 
 /** Resolve page names relative to both hierarchical and host-owned atlas URLs. */
-export const resolveSpineAtlasPageSource = (
-  atlasSource: string,
-  pageName: string,
-): string => {
+export const resolveSpineAtlasPageSource = (atlasSource: string, pageName: string): string => {
   const page = pageName.trim();
   if (!page) throw new TypeError("Spine atlas page name cannot be empty");
 
@@ -300,18 +270,12 @@ export const resolveSpineAtlasPageSource = (
     try {
       return new URL(page, atlasSource).toString();
     } catch (error) {
-      const opaque =
-        /^([A-Za-z][A-Za-z0-9+.-]*:)(?!\/\/)([^?#]*)(?:[?#].*)?$/u.exec(
-          atlasSource,
-        );
+      const opaque = /^([A-Za-z][A-Za-z0-9+.-]*:)(?!\/\/)([^?#]*)(?:[?#].*)?$/u.exec(atlasSource);
       if (!opaque) throw error;
       if (ABSOLUTE_SCHEME.test(page)) return page;
       if (page.startsWith("//")) return `${opaque[1]}${page}`;
       const syntheticOrigin = "https://vega-spine-opaque.invalid";
-      const syntheticBase = new URL(
-        `/${opaque[2]!.replace(/^\/+/u, "")}`,
-        syntheticOrigin,
-      );
+      const syntheticBase = new URL(`/${opaque[2]!.replace(/^\/+/u, "")}`, syntheticOrigin);
       const resolved = new URL(page, syntheticBase);
       if (resolved.origin !== syntheticOrigin) return resolved.toString();
       return `${opaque[1]}${resolved.pathname.replace(/^\/+/u, "")}${resolved.search}${resolved.hash}`;
@@ -324,19 +288,12 @@ export const resolveSpineAtlasPageSource = (
     return resolved.toString().replace(/^https:/u, "");
   }
 
-  if (
-    ABSOLUTE_SCHEME.test(page) ||
-    page.startsWith("//") ||
-    page.startsWith("/")
-  ) {
+  if (ABSOLUTE_SCHEME.test(page) || page.startsWith("//") || page.startsWith("/")) {
     return page;
   }
   const syntheticOrigin = "https://vega-spine-relative.invalid";
   const rooted = atlasSource.startsWith("/");
-  const base = new URL(
-    rooted ? atlasSource : `/${atlasSource}`,
-    syntheticOrigin,
-  );
+  const base = new URL(rooted ? atlasSource : `/${atlasSource}`, syntheticOrigin);
   const resolved = new URL(page, base);
   if (resolved.origin !== syntheticOrigin) return resolved.toString();
   const path = `${resolved.pathname}${resolved.search}${resolved.hash}`;
@@ -355,33 +312,20 @@ export const enumerateSpineResources = async (
   const descriptor = describeSpineModel(context.entry);
   if (!descriptor) return [];
   throwIfAborted(context.signal);
-  const atlas = await loadSpineAtlas(
-    context.resources,
-    descriptor.atlasSource,
-    context.signal,
-  );
+  const atlas = await loadSpineAtlas(context.resources, descriptor.atlasSource, context.signal);
   throwIfAborted(context.signal);
   const pageSources = [
-    ...new Set(
-      atlasPageNames(atlas).map((pageName) =>
-        resolveSpineAtlasPageSource(descriptor.atlasSource, pageName),
-      ),
-    ),
+    ...new Set(atlasPageNames(atlas).map((pageName) => resolveSpineAtlasPageSource(descriptor.atlasSource, pageName))),
   ];
   const containsSelectedAnimation = Boolean(
     context.animationUsage &&
-      (context.animationUsage.motions.length > 0 ||
-        context.animationUsage.expressions.length > 0),
+    (context.animationUsage.motions.length > 0 || context.animationUsage.expressions.length > 0),
   );
   return Object.freeze([
     Object.freeze({
       source: descriptor.skeletonSource,
-      label: descriptor.binary
-        ? "Spine binary skeleton"
-        : "Spine JSON skeleton",
-      ...(containsSelectedAnimation
-        ? { role: "animation" as const }
-        : {}),
+      label: descriptor.binary ? "Spine binary skeleton" : "Spine JSON skeleton",
+      ...(containsSelectedAnimation ? { role: "animation" as const } : {}),
     }),
     Object.freeze({
       source: descriptor.atlasSource,
@@ -400,17 +344,13 @@ export const enumerateSpineResources = async (
 export const createSpineCharacterProvider = (
   options: CreateSpinePluginOptions,
 ): StoryCharacterProvider & {
-  createForRenderer(
-    context: SpineRendererCharacterRequest,
-  ): unknown | Promise<unknown>;
+  createForRenderer(context: SpineRendererCharacterRequest): unknown | Promise<unknown>;
 } => {
   if (!options.adapter?.id?.trim()) {
     throw new TypeError("A named Spine runtime adapter is required");
   }
   const formats = new Set(
-    (options.formats ?? DEFAULT_FORMATS)
-      .map((format) => format.trim().toLowerCase())
-      .filter(Boolean),
+    (options.formats ?? DEFAULT_FORMATS).map((format) => format.trim().toLowerCase()).filter(Boolean),
   );
   if (formats.size === 0) {
     throw new TypeError("At least one Spine format must be enabled");
@@ -422,8 +362,7 @@ export const createSpineCharacterProvider = (
       const format = standardSpineFormat(entry);
       if (!format) return false;
       return (
-        (formats.has(format) ||
-          (format.startsWith("spine-") && formats.has("spine"))) &&
+        (formats.has(format) || (format.startsWith("spine-") && formats.has("spine"))) &&
         describeSpineModel(entry) !== null
       );
     },
@@ -432,8 +371,7 @@ export const createSpineCharacterProvider = (
     },
     async create(context) {
       const descriptor = describeSpineModel(context.entry);
-      if (!descriptor)
-        throw new TypeError("Spine model descriptor is incomplete");
+      if (!descriptor) throw new TypeError("Spine model descriptor is incomplete");
       throwIfAborted(context.signal);
       await options.adapter.prepare?.(context.signal);
       throwIfAborted(context.signal);
@@ -447,16 +385,13 @@ export const createSpineCharacterProvider = (
     },
     async createForRenderer(context) {
       const descriptor = describeSpineModel(context.entry);
-      if (!descriptor)
-        throw new TypeError("Spine model descriptor is incomplete");
+      if (!descriptor) throw new TypeError("Spine model descriptor is incomplete");
       const adapterContext: SpineRendererCharacterContext = {
         ...context,
         descriptor,
       };
       if (!options.adapter.createForRenderer) {
-        throw new Error(
-          `Spine adapter ${options.adapter.id} does not support renderer ${context.renderer}`,
-        );
+        throw new Error(`Spine adapter ${options.adapter.id} does not support renderer ${context.renderer}`);
       }
       throwIfAborted(context.signal);
       await options.adapter.prepare?.(context.signal);
@@ -511,18 +446,11 @@ export class SpineTrackQueue {
     if (typeof request.animation !== "string" || !request.animation.trim()) {
       throw new TypeError("Spine animation name cannot be empty");
     }
-    if (
-      request.mixSeconds !== undefined &&
-      (!Number.isFinite(request.mixSeconds) || request.mixSeconds < 0)
-    ) {
-      throw new RangeError(
-        "Spine mix duration must be a finite non-negative number",
-      );
+    if (request.mixSeconds !== undefined && (!Number.isFinite(request.mixSeconds) || request.mixSeconds < 0)) {
+      throw new RangeError("Spine mix duration must be a finite non-negative number");
     }
     const queue = this.tracks.get(request.track) ?? [];
-    queue.push(
-      Object.freeze({ ...request, animation: request.animation.trim() }),
-    );
+    queue.push(Object.freeze({ ...request, animation: request.animation.trim() }));
     this.tracks.set(request.track, queue);
   }
 
@@ -540,9 +468,7 @@ export class SpineTrackQueue {
           .sort(([left], [right]) => left - right)
           .map(([track, queue]) => [
             String(track),
-            Object.freeze(
-              queue.map((request) => Object.freeze({ ...request })),
-            ),
+            Object.freeze(queue.map((request) => Object.freeze({ ...request }))),
           ]),
       ),
     );

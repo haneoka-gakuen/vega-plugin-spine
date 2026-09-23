@@ -1,5 +1,7 @@
 const normalizePath = (path) =>
-  String(path).replaceAll("\\", "/").replace(/^\.\/+/u, "");
+  String(path)
+    .replaceAll("\\", "/")
+    .replace(/^\.\/+/u, "");
 
 const restrictedDirectory =
   /^(?:assets?|atlases?|character-models?|core|cubism(?:-?sdk)?|examples?|expressions?|framework|game-assets?|live2d|models?|motions?|physics|poses?|runtime|samples?|sdk|skeletons?|spine(?:-runtimes?)?|textures?|userdata|vendor)$/iu;
@@ -7,14 +9,11 @@ const restrictedDirectory =
 const cubismAssetName =
   /(?:^|[._-])(?:cdi3|exp(?:3)?|model(?:3)?|motion(?:3)?|motionsync3|physics(?:3)?|pose(?:3)?|userdata3)\.json$/iu;
 
-const spineAssetName =
-  /\.(?:atlas(?:\.(?:json|txt))?|skel|skeleton\.json|spine(?:\.json)?|spineproj)$/iu;
+const spineAssetName = /\.(?:atlas(?:\.(?:json|txt))?|skel|skeleton\.json|spine(?:\.json)?|spineproj)$/iu;
 
-const restrictedExtension =
-  /\.(?:bin|dat|dll|dylib|exp|gz|moc3?|mtn|node|so|tar|tgz|wasm|zip)$/iu;
+const restrictedExtension = /\.(?:bin|dat|dll|dylib|exp|gz|moc3?|mtn|node|so|tar|tgz|wasm|zip)$/iu;
 
-const mediaExtension =
-  /\.(?:avif|bmp|gif|jpe?g|m4a|mp3|mp4|ogg|png|svg|wav|webm|webp)$/iu;
+const mediaExtension = /\.(?:avif|bmp|gif|jpe?g|m4a|mp3|mp4|ogg|png|svg|wav|webm|webp)$/iu;
 
 const sdkFileName =
   /^(?:spine(?:-core|-canvas|-player|-threejs|-webgl)?(?:\.min)?|spine-cpp)\.(?:c|cc|cpp|h|hpp|js|mjs|cjs|wasm)$/iu;
@@ -40,8 +39,7 @@ const looksLikeSpineAtlas = (text) => {
     /(?:^|\r?\n)\s*repeat\s*:\s*(?:none|x|xy|y)/iu,
     /(?:^|\r?\n)\s*pma\s*:\s*(?:false|true)/iu,
   ].filter((pattern) => pattern.test(text)).length;
-  const regionField =
-    /(?:^|\r?\n)\s*(?:bounds|offsets|rotate|xy)\s*:/iu.test(text);
+  const regionField = /(?:^|\r?\n)\s*(?:bounds|offsets|rotate|xy)\s*:/iu.test(text);
   return atlasFields >= 3 && regionField;
 };
 
@@ -67,15 +65,7 @@ export const restrictedSpinePathReason = (path) => {
 
 export const restrictedSpineContentReason = (bytes) => {
   const body = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
-  if (
-    body.some(
-      (byte) =>
-        byte === 0 ||
-        byte === 0x7f ||
-        byte < 0x09 ||
-        (byte > 0x0d && byte < 0x20),
-    )
-  ) {
+  if (body.some((byte) => byte === 0 || byte === 0x7f || byte < 0x09 || (byte > 0x0d && byte < 0x20))) {
     return "binary payload";
   }
 
