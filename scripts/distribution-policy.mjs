@@ -79,7 +79,8 @@ export const restrictedSpineContentReason = (bytes) => {
     return "Esoteric Software copyright signature";
   }
   if (spineLicense.test(text)) return "Spine license signature";
-  if (bundledRuntimeMarker.test(text)) return "Spine SDK/runtime signature";
+  const runtimeSource = text.replace(/\bimport\s+type\b[^;]*;/gu, "");
+  if (bundledRuntimeMarker.test(runtimeSource)) return "Spine SDK/runtime signature";
   if (looksLikeSpineSkeletonJson(text)) return "Spine skeleton JSON signature";
   if (looksLikeSpineAtlas(text)) return "Spine atlas signature";
   return null;
