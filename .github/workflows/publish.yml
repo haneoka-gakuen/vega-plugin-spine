@@ -62,6 +62,8 @@ jobs:
           ref: 6bf76578c7ebdf318f5a3f5c198d01ac9235c853
           path: vega-plugin-spine/.dependencies/render-shaders
           persist-credentials: false
+      - name: Set up locked Vega Rust and WASM tools
+        uses: ./vega-plugin-spine/.dependencies/vega/.github/actions/setup-wasm
 
       - name: Install dependencies
         working-directory: vega-plugin-spine
