@@ -29,6 +29,7 @@ jobs:
           repository: haneoka-gakuen/vega
           path: vega-plugin-spine/.dependencies/vega
           persist-credentials: false
+          ref: 2fa1b39c1176852db38a45b453c737e8e3439f5d
 
       - name: Set up pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
@@ -47,6 +48,20 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: node scripts/verify-release-tag.mjs
+      - name: Check out vega-renderer-three
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: haneoka-gakuen/vega-renderer-three
+          ref: 33a9127d9537cc5c303fceaa35fafda403713b42
+          path: vega-plugin-spine/.dependencies/vega-renderer-three
+          persist-credentials: false
+      - name: Check out render-shaders
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: haneoka-gakuen/render-shaders
+          ref: 6bf76578c7ebdf318f5a3f5c198d01ac9235c853
+          path: vega-plugin-spine/.dependencies/render-shaders
+          persist-credentials: false
 
       - name: Install dependencies
         working-directory: vega-plugin-spine
@@ -59,6 +74,11 @@ jobs:
       - name: Build Vega core
         working-directory: vega-plugin-spine
         run: pnpm --filter @haneoka/vega build:core
+      - name: Build additional pinned SDK dependencies
+        working-directory: vega-plugin-spine
+        run: |-
+          pnpm --filter @haneoka/render-shaders build
+          pnpm --filter @haneoka/vega-renderer-three build
 
       - name: Check package
         working-directory: vega-plugin-spine
