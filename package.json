@@ -38,7 +38,12 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./three": {
+      "types": "./dist/three.d.ts",
+      "import": "./dist/three.js",
+      "default": "./dist/three.js"
+    }
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -50,12 +55,19 @@
     "format:check": "prettier --check . --ignore-unknown"
   },
   "peerDependencies": {
-    "@haneoka/vega": "^0.1.0"
+    "@haneoka/vega": "^0.1.0",
+    "@esotericsoftware/spine-threejs": "4.2.119",
+    "three": "0.184.0",
+    "@haneoka/vega-renderer-three": "^0.1.0"
   },
   "devDependencies": {
     "@haneoka/vega": "^0.1.0",
     "typescript": "^6.0.3",
-    "prettier": "3.7.4"
+    "prettier": "3.7.4",
+    "@esotericsoftware/spine-threejs": "4.2.119",
+    "three": "0.184.0",
+    "@haneoka/vega-renderer-three": "^0.1.0",
+    "@types/three": "^0.184.1"
   },
   "publishConfig": {
     "access": "public",
@@ -80,5 +92,16 @@
       "android",
       "ios"
     ]
+  },
+  "peerDependenciesMeta": {
+    "@esotericsoftware/spine-threejs": {
+      "optional": true
+    },
+    "three": {
+      "optional": true
+    },
+    "@haneoka/vega-renderer-three": {
+      "optional": true
+    }
   }
 }

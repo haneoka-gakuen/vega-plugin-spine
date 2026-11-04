@@ -2,6 +2,8 @@ packages:
   - "."
   - ".dependencies/vega"
   - ".dependencies/vega/packages/protocol"
+  - ".dependencies/vega-renderer-three"
+  - ".dependencies/render-shaders"
 
 linkWorkspacePackages: true
 autoInstallPeers: false

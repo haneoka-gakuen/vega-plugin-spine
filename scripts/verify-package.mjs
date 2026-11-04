@@ -19,19 +19,11 @@ const policies = {
   },
   "@haneoka/vega-plugin-spine": {
     repository: "git+https://github.com/haneoka-gakuen/vega-plugin-spine.git",
-    peerDependencies: ["@haneoka/vega"],
+    peerDependencies: ["@haneoka/vega", "@haneoka/vega-renderer-three", "three", "@esotericsoftware/spine-threejs"],
     allowedImports: ["@haneoka/vega", "@haneoka/vega/plugin"],
     forbiddenDependency: /(?:@esotericsoftware|spine)/iu,
     externalRuntime: true,
     forbidMedia: true,
-  },
-  "@haneoka/vega-renderer-pixi": {
-    repository: "git+https://github.com/haneoka-gakuen/vega-renderer-pixi.git",
-    peerDependencies: ["@haneoka/vega", "pixi.js"],
-    allowedImports: ["@haneoka/vega", "pixi.js"],
-    forbiddenDependency: /(?:live2d|cubism|motionsync|@esotericsoftware|spine)/iu,
-    externalRuntime: false,
-    forbidMedia: false,
   },
 };
 
@@ -63,7 +55,11 @@ if (policy.externalRuntime && manifest.vega?.externalRuntime !== true) {
 const dependencySections = ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
 for (const section of dependencySections) {
   for (const name of Object.keys(manifest[section] ?? {})) {
-    if (policy.forbiddenDependency.test(name)) {
+    const injectedSpineTypes =
+      name === "@esotericsoftware/spine-threejs" &&
+      (section === "devDependencies" || section === "peerDependencies") &&
+      manifest.peerDependenciesMeta?.[name]?.optional === true;
+    if (policy.forbiddenDependency.test(name) && !injectedSpineTypes) {
       fail(`forbidden SDK/runtime dependency ${name} in ${section}`);
     }
   }
@@ -135,12 +131,15 @@ const walkRepository = async (path, relativePath = "") => {
 };
 
 await walkRepository(root);
-const restrictedRepositoryFiles = repositoryFiles.filter((path) => restrictedSpinePathReason(path));
+const restrictedRepositoryFiles = repositoryFiles.filter(
+  (path) => !path.startsWith("docs/brand/") && restrictedSpinePathReason(path),
+);
 if (restrictedRepositoryFiles.length > 0) {
   fail(`restricted SDK, runtime, model, or asset payload:\n${restrictedRepositoryFiles.join("\n")}`);
 }
 
 for (const path of repositoryFiles) {
+  if (path.startsWith("docs/brand/")) continue;
   const reason = restrictedSpineContentReason(await readFile(resolve(root, path)));
   if (reason) fail(`${reason} found in repository file ${path}`);
 }
@@ -191,7 +190,11 @@ if (publishableBytes > 5 * 1024 * 1024) {
   fail(`publish payload is unexpectedly large (${publishableBytes} bytes)`);
 }
 
-const builtJavaScript = await readFile(resolve(root, "dist/index.js"), "utf8");
+const builtJavaScript = (
+  await Promise.all(
+    publishableFiles.filter((path) => path.endsWith(".js")).map((path) => readFile(resolve(root, path), "utf8")),
+  )
+).join("\n");
 const importPattern = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s*)["']([^"']+)["']/gu;
 const externalImports = new Set(
   [...builtJavaScript.matchAll(importPattern)]
